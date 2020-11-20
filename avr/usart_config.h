@@ -28,7 +28,7 @@
 //#define USART_NO_ABI_BREAKING_PREMATURES // do not use prematures that might break compilers ABI (non-gcc calling conventions), compilers that are not forcing constant number of call-used registers might generate even better code
 //#define USART_PUTHEX_IN_UPPERCASE // use uppercase letters in uart_puthex() function
 //#define USART_EXTEND_RX_BUFFER // extend RX buffer by hardware 2/3 byte FIFO // required for hardware and software RTS
-//#define USART_PUTC_FAST_INSERTIONS // skip FIFO procedure and write directly data to the UDR register when possible // probably required for full bus utilization at highest speed (f_cpu/8)
+#define USART_PUTC_FAST_INSERTIONS // skip FIFO procedure and write directly data to the UDR register when possible // probably required for full bus utilization at highest speed (f_cpu/8)
 //#define USART_NO_LOCAL_BUFFERS // do not allocate temporary buffers on stack for integer/float <-> asci conversions and use globally visible u_tmp_buff[] instead // it have to be declared in application part and have to be at least of 6-17 bytes wide (depending on what is being converted)
 //#define USART_UNSAFE_TX_INTERRUPT // max 19 cycles of interrupt latency // 3+PC bytes on stack // will not interrupt itself
 //#define USART_UNSAFE_RX_INTERRUPT // max 23 cycles of interrupt latency // 4+PC bytes on stack // will not interrupt itself
@@ -48,15 +48,15 @@
 	#define USART_Z_SAVE_REG_NAME G_z_save // ??? // have to be redeclared under the same name if the same registers are reused in other instances (libs)
 	#define USART_Z_SAVE_REG_NUM "r2" // register pair rn and rn+1 (rn+1:rn gives "invalid register name")
 
-//#define RX_BUFFER_SIZE 128 // Size of the ring buffers, must be power of 2 // default 32
-//#define TX_BUFFER_SIZE 64 // Size of the ring buffers, must be power of 2 // default 32
+#define RX_BUFFER_SIZE 128 // Size of the ring buffers, must be power of 2 // default 32
+#define TX_BUFFER_SIZE 64 // Size of the ring buffers, must be power of 2 // default 32
 
 /*****************************config for multiple USART mcu's***********************************/
 
 //#define NO_USART0 // disable usage of uart0
-//#define NO_USART1 // disable usage of uart1
-//#define NO_USART2 // disable usage of uart2
-//#define NO_USART3 // disable usage of uart3
+#define NO_USART1 // disable usage of uart1
+#define NO_USART2 // disable usage of uart2
+#define NO_USART3 // disable usage of uart3
 
 //#define RX0_BUFFER_SIZE 128
 //#define TX0_BUFFER_SIZE 64
