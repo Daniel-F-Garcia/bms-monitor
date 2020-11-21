@@ -7,7 +7,13 @@
 #include "usart.h"
 #include "bms.h"
 
-#define BUFF_SIZE   64
+#define INVALID_THRESHOLD 2
+#define CELL_OVP 3750
+#define CELL_UVP 2700
+// Celcius multiples of 0.1
+#define TEMP_WARN 450
+#define TEMP_OVER 600
+
 
 char * tohex(uint8_t * in, size_t size) {
 	char * ret = malloc(size*3);
@@ -28,75 +34,6 @@ char * tohex(uint8_t * in, size_t size) {
 	return ret;
 }
 
-
-void bms_request_start() {
-	uart_flush();
-	uart_putstrl("\xDD\x5A\x00\x02\x56\x78\xFF\x30\x77", 9);
-}
-
-void bms_request_end() {
-	uart_flush();
-	uart_putstrl("\xDD\x5A\x01\x02\x00\x00\xFF\xFD\x77", 9);
-}
-
-struct BMSGeneral bms_request_general() {
-	struct BMSGeneral ret;
-	ret.valid = 0;
-	
-	//uart_flush();
-	unsigned char data[] = {0xDD, 0xA5, 0x03, 0x00, 0xFF, 0xFD, 0x77};
-	for (int i=0; i<7; i++) {
-		uart_putc(data[i]);
-	}
-
-	uint8_t buffer[BUFF_SIZE];
-	uint8_t response_length = bms_get_response(buffer);
-	
-	if (response_length==0) {
-		display_set_text("t4", "EMPTY");
-	} else {
-		char * temp = tohex(buffer, response_length);
-		display_set_text("t4", "%d: %s", response_length, temp);
-	}
-	
-	if (response_length<4) {
-		return ret;
-	}
-	
-	if (buffer[0]!=0xDD || buffer[1]!=0x03 || buffer[2]!=0x00 || buffer[3]<0x19) {
-		return ret;
-	}
-	
-	ret.pack_voltage = (buffer[4] << 8) | buffer[5];
-	ret.pack_current = (buffer[6] << 8) | buffer[7];
-	if (ret.pack_current==0) {
-		ret.state = 0;
-	} else if (ret.pack_current>0) {
-		ret.state = 1;
-	} else {
-		ret.state = -1;
-	}
-	ret.pack_current = abs(ret.pack_current);
-	ret.residual_capacity = (buffer[8] << 8) | buffer[9];
-	ret.nominal_capacity = (buffer[10] << 8) | buffer[11];
-	if (ret.nominal_capacity==0) {
-		ret.percent_capacity = -1;
-	} else {
-		ret.percent_capacity = (uint32_t)ret.residual_capacity * 100 / ret.nominal_capacity;
-	}
-	ret.temperature = ((buffer[27] << 8) | buffer[28]) - 2731;
-	ret.valid = 1;
-	
-	return ret;
-}
-
-void bms_request_voltage() {
-	char data[8] = {0xDD, 0xA5, 0x04, 0x00, 0xFF, 0xFC, 0x77};
-	for (int i=0; i<7; i++) {
-		uart_putc(data[i]);
-	}
-}
-
 int main(void) {
 	display_init();
 	uart_set_FrameFormat(USART_8BIT_DATA|USART_1STOP_BIT|USART_NO_PARITY|USART_ASYNC_MODE);
@@ -108,18 +45,16 @@ int main(void) {
 	
 	_delay_ms(100);
 	bms_request_general();
-
+	_delay_ms(100);
+	
+	uint8_t general_invalid_count = 0;
+	uint8_t cell_invalid_count = 0;
 	
 	while(1) {
-		//display_uart_puts("bar.val=70\xFF\xFF\xFF");
-		
-		display_set_text("t4", "wait...");
-		_delay_ms(500);
-		
 		struct BMSGeneral bms_general = bms_request_general();
 		
-		
 		if (bms_general.valid) {
+			general_invalid_count = 0;
 			display_set_text("t0", "%d.%02d", bms_general.pack_voltage/100, bms_general.pack_voltage % 100);
 			if (bms_general.state==-1) {
 				display_set_text("t1", "-%d.%02d", bms_general.pack_current/100, bms_general.pack_current % 100);
@@ -130,20 +65,81 @@ int main(void) {
 				display_set_text("t2", "ERR");
 			} else {
 				display_set_text("t2", "%01d", bms_general.percent_capacity);
-				display_set_bar("bar", bms_general.percent_capacity);
+				display_set_int("bar", "val", bms_general.percent_capacity);
 			}
 			if (bms_general.temperature<0) {
 				display_set_text("t3", "-%d.%01d", bms_general.temperature/10, bms_general.temperature % 10);
 			} else {
 				display_set_text("t3", "%d.%01d", bms_general.temperature/10, bms_general.temperature % 10);
 			}
+			if (bms_general.temperature>TEMP_OVER) {
+				display_command("t3.pco=63488"); // red
+			} else if (bms_general.temperature>TEMP_WARN) {
+				display_command("t3.pco=65504"); // yellow
+			} else {
+				display_command("t3.pco=65535"); // white
+			}
 			
 		} else {
-			display_set_text("t0", "ERR");
-			display_set_text("t1", "ERR");
+			if (general_invalid_count<INVALID_THRESHOLD) {
+				general_invalid_count++;
+			} else {
+				display_set_text("t0", ". . . .");
+				display_set_text("t1", ". . . .");	
+				display_set_text("t2", ". . .");	
+				display_set_text("t3", ". . .");	
+			}
+			
 		}
 		
-
+		_delay_ms(50);
+		
+		struct BMSCells bms_cells = bms_request_cells();
+		
+		//char * temp = tohex(bms_cells.buffer, bms_cells.response_length);
+		//display_set_text("t8", "%d: %s", bms_cells.response_length, temp);
+		
+		if (bms_cells.valid) {
+			cell_invalid_count = 0;
+			display_set_text("t4", "%d.%03d", bms_cells.voltage[0]/1000, bms_cells.voltage[0] % 1000);
+			display_set_text("t5", "%d.%03d", bms_cells.voltage[1]/1000, bms_cells.voltage[1] % 1000);
+			display_set_text("t6", "%d.%03d", bms_cells.voltage[2]/1000, bms_cells.voltage[2] % 1000);
+			display_set_text("t7", "%d.%03d", bms_cells.voltage[3]/1000, bms_cells.voltage[3] % 1000);
+			
+			if (bms_cells.voltage[0]>CELL_OVP || bms_cells.voltage[0]<CELL_UVP) {
+				display_command("t4.pco=65504"); // yellow
+			} else {
+				display_command("t4.pco=65535"); // white
+			}
+			
+			if (bms_cells.voltage[1]>CELL_OVP || bms_cells.voltage[1]<CELL_UVP) {
+				display_command("t5.pco=65504"); // yellow
+			} else {
+				display_command("t5.pco=65535"); // white
+			}
+			
+			if (bms_cells.voltage[2]>CELL_OVP || bms_cells.voltage[2]<CELL_UVP) {
+				display_command("t6.pco=65504"); // yellow
+			} else {
+				display_command("t6.pco=65535"); // white
+			}
+			
+			if (bms_cells.voltage[3]>CELL_OVP || bms_cells.voltage[3]<CELL_UVP) {
+				display_command("t7.pco=65504"); // yellow
+			} else {
+				display_command("t7.pco=65535"); // white
+			}
+		} else {
+			if (cell_invalid_count<INVALID_THRESHOLD) {
+				cell_invalid_count++;
+			} else {
+				display_set_text("t4", ". . . . .");
+				display_set_text("t5", ". . . . .");
+				display_set_text("t6", ". . . . .");
+				display_set_text("t7", ". . . . .");
+			}
+		}
+		
 		_delay_ms(2500);
 	}
 

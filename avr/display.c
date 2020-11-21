@@ -26,6 +26,12 @@ void display_init() {
    OCR0A = 103;
 }
 
+void display_command(char* command) {
+	display_uart_puts(command);
+	display_uart_puts("\xFF\xFF\xFF");
+}
+
+
 void display_uart_put(char character) {
    uint16_t local_tx_shift_reg = tx_shift_reg;
    //if sending the previous character is not yet finished, return
@@ -61,12 +67,14 @@ void display_set_text(char* variable, const char *format, ...) {
 	display_uart_puts("\"\xFF\xFF\xFF");
 }
 
-void display_set_bar(char* variable, int8_t value) {
-	char stringValue[4];
+void display_set_int(char* object, char* variable, int32_t value) {
+	char stringValue[11];
 	itoa(value, stringValue, 10);
 	
+	display_uart_puts(object);
+	display_uart_puts(".");
 	display_uart_puts(variable);
-	display_uart_puts(".val=");
+	display_uart_puts("=");
 	display_uart_puts(stringValue);
 	display_uart_puts("\xFF\xFF\xFF");
 }

@@ -1,5 +1,6 @@
 #define BMS_RESPONSE_TIMEOUT 100
 #define BMS_READ_TIMEOUT 2
+#define BUFF_SIZE   64
 
 struct BMSGeneral {
 	uint8_t  valid;
@@ -12,6 +13,17 @@ struct BMSGeneral {
 	int16_t  temperature;        // celcius in multiples of 0.1 degree
 };
 
+struct BMSCells {
+	uint8_t  valid;
+	uint16_t voltage[4];       // in mV
+	//uint8_t * buffer;
+	//uint8_t response_length;
+};
+
 uint8_t bms_get_response_byte(uint8_t * buffer, uint8_t timeout);
 
 uint8_t bms_get_response(uint8_t * buffer);
+
+struct BMSGeneral bms_request_general(void);
+
+struct BMSCells bms_request_cells(void);
