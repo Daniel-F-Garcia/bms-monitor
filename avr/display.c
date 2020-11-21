@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
@@ -45,17 +46,29 @@ void display_uart_puts(char* string) {
     }
 }
 
-void display_set_text(char* variable, char *format, ...) {
-	va_list valist;
+void display_set_text(char* variable, const char *format, ...) {
+	char value[DISPLAY_MAX_STRING_LENGTH];
 	
-	char value[50];
-	sprintf(value, format, valist);
-	
+	va_list args;
+	va_start(args, format);
+	vsprintf(value, format, args);
+	va_end(args);
+
 	display_uart_puts(variable);
 	display_uart_puts(".txt=\"");
-	//uart_bb_tx_str(value);
-	display_uart_puts(format);
+	display_uart_puts(value);
+	//display_uart_puts(format);
 	display_uart_puts("\"\xFF\xFF\xFF");
+}
+
+void display_set_bar(char* variable, int8_t value) {
+	char stringValue[4];
+	itoa(value, stringValue, 10);
+	
+	display_uart_puts(variable);
+	display_uart_puts(".val=");
+	display_uart_puts(stringValue);
+	display_uart_puts("\xFF\xFF\xFF");
 }
 
 //timer0 compare A match interrupt

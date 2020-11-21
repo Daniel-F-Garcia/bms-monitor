@@ -60,7 +60,7 @@ TARGET = main
 
 
 # List C source files here. (C dependencies are automatically generated.)
-SRC = $(TARGET).c usart.c display.c
+SRC = $(TARGET).c usart.c display.c bms.c
 
 
 # List Assembler source files here.
