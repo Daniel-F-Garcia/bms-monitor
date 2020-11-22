@@ -76,6 +76,7 @@ struct BMSGeneral bms_request_general() {
 	} else {
 		ret.percent_capacity = (uint32_t)ret.residual_capacity * 100 / ret.nominal_capacity;
 	}
+	ret.balance_status = buffer[16];
 	ret.temperature = ((buffer[27] << 8) | buffer[28]) - 2731;
 	ret.valid = 1;
 	

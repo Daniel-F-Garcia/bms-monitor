@@ -8,8 +8,19 @@
 #include "bms.h"
 
 #define INVALID_THRESHOLD 2
-#define CELL_OVP 3750
-#define CELL_UVP 2700
+#define CELL_OVP_1 3750
+#define CELL_OVP_2 3850
+#define CELL_UVP_1 2700
+#define CELL_UVP_2 2500
+
+#define PACK_OVP_1 1480
+#define PACK_OVP_2 1520
+#define PACK_UVP_1 1100
+#define PACK_UVP_2 1000
+
+#define PACK_CURRENT_MAX_1 1000
+#define PACK_CURRENT_MAX_2 1200
+
 // Celcius multiples of 0.1
 #define TEMP_WARN 450
 #define TEMP_OVER 600
@@ -34,6 +45,19 @@ char * tohex(uint8_t * in, size_t size) {
 	return ret;
 }
 
+void display_cell_voltage(char * text_field, uint16_t voltage) {
+	display_set_text(text_field, "%d.%03d", voltage/1000, voltage % 1000);
+
+	display_uart_puts(text_field);
+	if (voltage>CELL_OVP_2 || voltage<CELL_UVP_2) {
+		display_command(".pco=63488"); // red
+	} else if (voltage>CELL_OVP_1 || voltage<CELL_UVP_1) {
+		display_command(".pco=65504"); // yellow
+	} else {
+		display_command(".pco=65535"); // white
+	}
+}
+
 int main(void) {
 	display_init();
 	uart_set_FrameFormat(USART_8BIT_DATA|USART_1STOP_BIT|USART_NO_PARITY|USART_ASYNC_MODE);
@@ -55,18 +79,40 @@ int main(void) {
 		
 		if (bms_general.valid) {
 			general_invalid_count = 0;
+			
+			// Pack Voltage
 			display_set_text("t0", "%d.%02d", bms_general.pack_voltage/100, bms_general.pack_voltage % 100);
+			if (bms_general.pack_voltage>PACK_OVP_2 || bms_general.pack_voltage<PACK_UVP_2) {
+				display_command("t0.pco=63488"); // red
+			} else if (bms_general.pack_voltage>PACK_OVP_1 || bms_general.pack_voltage<PACK_UVP_1) {
+				display_command("t0.pco=65504"); // yellow
+			} else {
+				display_command("t0.pco=65535"); // white
+			}
+			
+			// Current
 			if (bms_general.state==-1) {
 				display_set_text("t1", "-%d.%02d", bms_general.pack_current/100, bms_general.pack_current % 100);
 			} else {
 				display_set_text("t1", "%d.%02d", bms_general.pack_current/100, bms_general.pack_current % 100);
 			}
+			if (bms_general.pack_current>PACK_CURRENT_MAX_2) {
+				display_command("t1.pco=63488"); // red
+			} else if (bms_general.pack_current>PACK_CURRENT_MAX_1) {
+				display_command("t1.pco=65504"); // yellow
+			} else {
+				display_command("t1.pco=65535"); // white
+			}
+			
+			// Percent Capacity
 			if (bms_general.percent_capacity==-1) {
 				display_set_text("t2", "ERR");
 			} else {
 				display_set_text("t2", "%01d", bms_general.percent_capacity);
 				display_set_int("bar", "val", bms_general.percent_capacity);
 			}
+			
+			// Temperature
 			if (bms_general.temperature<0) {
 				display_set_text("t3", "-%d.%01d", bms_general.temperature/10, bms_general.temperature % 10);
 			} else {
@@ -80,14 +126,39 @@ int main(void) {
 				display_command("t3.pco=65535"); // white
 			}
 			
+			// Balance Status
+			if (bms_general.balance_status & _BV(0)) {
+				display_command("vis p0,1");
+			} else {
+				display_command("vis p0,0");
+			}
+			
+			if (bms_general.balance_status & _BV(1)) {
+				display_command("vis p1,1");
+			} else {
+				display_command("vis p1,0");
+			}
+			
+			if (bms_general.balance_status & _BV(2)) {
+				display_command("vis p2,1");
+			} else {
+				display_command("vis p2,0");
+			}
+			
+			if (bms_general.balance_status & _BV(3)) {
+				display_command("vis p3,1");
+			} else {
+				display_command("vis p3,0");
+			}
+			
 		} else {
 			if (general_invalid_count<INVALID_THRESHOLD) {
 				general_invalid_count++;
 			} else {
 				display_set_text("t0", ". . . .");
 				display_set_text("t1", ". . . .");	
-				display_set_text("t2", ". . .");	
-				display_set_text("t3", ". . .");	
+				display_set_text("t2", ". . . .");	
+				display_set_text("t3", ". . . .");	
 			}
 			
 		}
@@ -101,34 +172,10 @@ int main(void) {
 		
 		if (bms_cells.valid) {
 			cell_invalid_count = 0;
-			display_set_text("t4", "%d.%03d", bms_cells.voltage[0]/1000, bms_cells.voltage[0] % 1000);
-			display_set_text("t5", "%d.%03d", bms_cells.voltage[1]/1000, bms_cells.voltage[1] % 1000);
-			display_set_text("t6", "%d.%03d", bms_cells.voltage[2]/1000, bms_cells.voltage[2] % 1000);
-			display_set_text("t7", "%d.%03d", bms_cells.voltage[3]/1000, bms_cells.voltage[3] % 1000);
-			
-			if (bms_cells.voltage[0]>CELL_OVP || bms_cells.voltage[0]<CELL_UVP) {
-				display_command("t4.pco=65504"); // yellow
-			} else {
-				display_command("t4.pco=65535"); // white
-			}
-			
-			if (bms_cells.voltage[1]>CELL_OVP || bms_cells.voltage[1]<CELL_UVP) {
-				display_command("t5.pco=65504"); // yellow
-			} else {
-				display_command("t5.pco=65535"); // white
-			}
-			
-			if (bms_cells.voltage[2]>CELL_OVP || bms_cells.voltage[2]<CELL_UVP) {
-				display_command("t6.pco=65504"); // yellow
-			} else {
-				display_command("t6.pco=65535"); // white
-			}
-			
-			if (bms_cells.voltage[3]>CELL_OVP || bms_cells.voltage[3]<CELL_UVP) {
-				display_command("t7.pco=65504"); // yellow
-			} else {
-				display_command("t7.pco=65535"); // white
-			}
+			display_cell_voltage("t4", bms_cells.voltage[0]);
+			display_cell_voltage("t5", bms_cells.voltage[1]);
+			display_cell_voltage("t6", bms_cells.voltage[2]);
+			display_cell_voltage("t7", bms_cells.voltage[3]);
 		} else {
 			if (cell_invalid_count<INVALID_THRESHOLD) {
 				cell_invalid_count++;
