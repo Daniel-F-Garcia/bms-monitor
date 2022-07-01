@@ -8,13 +8,13 @@
 #include "bms.h"
 
 #define INVALID_THRESHOLD 2
-#define CELL_OVP_1 3750
-#define CELL_OVP_2 3850
+#define CELL_OVP_1 3650
+#define CELL_OVP_2 3750
 #define CELL_UVP_1 2700
 #define CELL_UVP_2 2500
 
-#define PACK_OVP_1 1480
-#define PACK_OVP_2 1520
+#define PACK_OVP_1 1460
+#define PACK_OVP_2 1500
 #define PACK_UVP_1 1100
 #define PACK_UVP_2 1000
 
@@ -149,6 +149,20 @@ int main(void) {
 				display_command("vis p3,1");
 			} else {
 				display_command("vis p3,0");
+			}
+			
+			//display_set_text("t8", tohex(bms_general.data, bms_general.data_length));
+			
+			// Charge/Discharge FETs
+			if (bms_general.fet_charging) {
+				display_command("vis p4,1");
+			} else {
+				display_command("vis p4,0");
+			}
+			if (bms_general.fet_discharging) {
+				display_command("vis p5,1");
+			} else {
+				display_command("vis p5,0");
 			}
 			
 		} else {

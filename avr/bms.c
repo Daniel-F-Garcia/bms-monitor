@@ -43,9 +43,9 @@ struct BMSGeneral bms_request_general() {
 	struct BMSGeneral ret;
 	ret.valid = 0;
 	
-	unsigned char data[] = {0xDD, 0xA5, 0x03, 0x00, 0xFF, 0xFD, 0x77};
+	unsigned char request[] = {0xDD, 0xA5, 0x03, 0x00, 0xFF, 0xFD, 0x77};
 	for (int i=0; i<7; i++) {
-		uart_putc(data[i]);
+		uart_putc(request[i]);
 	}
 
 	uint8_t buffer[BUFF_SIZE];
@@ -59,8 +59,15 @@ struct BMSGeneral bms_request_general() {
 		return ret;
 	}
 	
-	ret.pack_voltage = (buffer[4] << 8) | buffer[5];
-	ret.pack_current = (buffer[6] << 8) | buffer[7];
+	// Data addresses https://gitlab.com/bms-tools/bms-tools/-/blob/master/JBD_REGISTER_MAP.md
+	// Exceptions: Fet Status @ 0x14, NTC @ 0x17 
+	
+	uint8_t* data = buffer + 4;
+	ret.data = data;
+	ret.data_length = response_length - 4;
+		
+	ret.pack_voltage = (data[0x00] << 8) | data[0x01];
+	ret.pack_current = (data[0x02] << 8) | data[0x03];
 	if (ret.pack_current==0) {
 		ret.state = 0;
 	} else if (ret.pack_current>0) {
@@ -69,15 +76,17 @@ struct BMSGeneral bms_request_general() {
 		ret.state = -1;
 	}
 	ret.pack_current = abs(ret.pack_current);
-	ret.residual_capacity = (buffer[8] << 8) | buffer[9];
-	ret.nominal_capacity = (buffer[10] << 8) | buffer[11];
+	ret.residual_capacity = (data[0x04] << 8) | data[0x05];
+	ret.nominal_capacity = (data[0x06] << 8) | data[0x07];
 	if (ret.nominal_capacity==0) {
 		ret.percent_capacity = -1;
 	} else {
 		ret.percent_capacity = (uint32_t)ret.residual_capacity * 100 / ret.nominal_capacity;
 	}
-	ret.balance_status = buffer[16];
-	ret.temperature = ((buffer[27] << 8) | buffer[28]) - 2731;
+	ret.balance_status = (data[0x0C] << 8) | data[0x0D];
+	ret.temperature = ((data[0x17] << 8) | data[0x18]) - 2731;
+	ret.fet_charging = data[0x14] & 0x01;
+	ret.fet_discharging = (data[0x14] & 0x02) >> 1;
 	ret.valid = 1;
 	
 	return ret;
