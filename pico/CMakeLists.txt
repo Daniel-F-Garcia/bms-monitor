@@ -12,7 +12,7 @@ endif()
 
 pico_sdk_init()
 
-add_executable(bms-monitor bms-monitor.cpp Nextion.cpp Nextion.h)
+add_executable(bms-monitor bms-monitor.cpp Nextion.cpp Nextion.h SmartBMS.cpp SmartBMS.h)
 
 pico_add_extra_outputs(bms-monitor)
 

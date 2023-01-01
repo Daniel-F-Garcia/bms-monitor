@@ -1,0 +1,200 @@
+#include "SmartBMS.h"
+
+#define BAUD_RATE 9600
+#define DATA_BITS 8
+#define STOP_BITS 1
+#define PARITY UART_PARITY_NONE
+
+#define BMS_INFO_REQUEST "\xDD\xA5\x03\x00\xFF\xFD\x77"
+
+SmartBMS::SmartBMS(uart_inst_t *uartId, uint txPin, uint rxPin) {
+    mUartId = uartId;
+    mTxPin = txPin;
+    mRxPin = rxPin;
+
+    uart_init(mUartId, BAUD_RATE);
+    gpio_set_function(mTxPin, GPIO_FUNC_UART);
+    gpio_set_function(mRxPin, GPIO_FUNC_UART);
+    uart_set_format(mUartId, DATA_BITS, STOP_BITS, PARITY);
+}
+
+void SmartBMS::refresh() {
+    mError = "";
+
+    uart_puts(mUartId, BMS_INFO_REQUEST);
+    size_t responseBytes = readResponse(mReadBuffer);
+    if (mError!="") {
+        return;
+    }
+
+    if (mReadBuffer[1] != 0x03) {
+        mError = "Unexpected response type";
+        return;
+    }
+
+    if (responseBytes<4) {
+        mError = "Fewer than 4 bytes received";
+        return;
+    }
+
+    if (mReadBuffer[3] < 0x19) {
+        mError = "Response length too short";
+        return;
+    }
+
+    // Data addresses https://gitlab.com/bms-tools/bms-tools/-/blob/master/JBD_REGISTER_MAP.md
+    // On my BMS: Fet Status @ 0x14, NTC @ 0x17
+
+    uint8_t* data = mReadBuffer + 4;
+
+    mPackVoltage = (data[0x00] << 8) | data[0x01];
+    int16_t packCurrent = (data[0x02] << 8) | data[0x03];
+    if (packCurrent==0) {
+        mStatus = BMSStatus::NONE;
+    } else if (packCurrent>0) {
+        mStatus = BMSStatus::CHARGING;
+    } else {
+        mStatus = BMSStatus::DISCHARGING;
+    }
+    mPackCurrent = abs(packCurrent);
+
+    mNominalCapacity = (data[0x06] << 8) | data[0x07];
+    mResidualCapacity = (data[0x04] << 8) | data[0x05];
+
+    if (mNominalCapacity==0) {
+        mPercentCapacity = -1;
+    } else {
+        mPercentCapacity = (uint32_t) mResidualCapacity * 100 / mNominalCapacity;
+    }
+
+    mBalanceStatus = (data[0x0C] << 8) | data[0x0D];
+    mTemperature = ((data[0x17] << 8) | data[0x18]) - 2731;
+    mFetCharging = data[0x14] & 0x01;
+    mFetDischarging = (data[0x14] & 0x02) >> 1;
+}
+
+//region getters
+
+bool SmartBMS::isValid() {
+    return mError=="";
+}
+
+uint16_t SmartBMS::getPackVoltage() {
+    return mPackVoltage;
+}
+
+int16_t  SmartBMS::getPackCurrent() {
+    return mPackCurrent;
+}
+
+BMSStatus SmartBMS::getStatus() {
+    return mStatus;
+}
+
+uint16_t SmartBMS::getNominalCapacity() {
+    return mNominalCapacity;
+}
+
+uint16_t SmartBMS::getResidualCapacity() {
+    return mResidualCapacity;
+}
+
+int8_t SmartBMS::getPercentCapacity() {
+    return mPercentCapacity;
+}
+
+int16_t SmartBMS::getTemperature() {
+    return mTemperature;
+}
+
+bool SmartBMS::getFetCharging() {
+    return mFetCharging;
+}
+
+bool SmartBMS::getFetDischarging() {
+    return mFetDischarging;
+}
+
+//endregion
+
+//region private
+
+size_t SmartBMS::readResponse(uint8_t *buffer) {
+    // see https://blog.ja-ke.tech/2020/02/07/ltt-power-bms-chinese-protocol.html
+
+    size_t totalBytes = 0;
+
+    size_t bytesRead = readBytes(buffer, 3);
+    totalBytes += bytesRead;
+    if (bytesRead!=3) {
+        return totalBytes;
+    }
+
+    if (buffer[0] != MAGIC_START) {
+        mError = "unexpected value at response position 0";
+        readAndIgnore();
+        return bytesRead;
+    }
+
+    if (buffer[2] != STATUS_OK) {
+        mError = "response returned error";
+        readAndIgnore();
+        return bytesRead;
+    }
+
+    size_t dataLength = buffer[1] + 3;
+    if (dataLength > READ_BUFFER_SIZE - 3) {
+        mError = "response exceeds buffer size";
+        readAndIgnore();
+        return bytesRead;
+    }
+
+    bytesRead = readBytes(buffer + totalBytes, dataLength);
+    totalBytes += bytesRead;
+    if (bytesRead != dataLength) {
+        mError = "timeout reading response data";
+        return totalBytes;
+    }
+
+    if (buffer[totalBytes - 1] != MAGIC_END) {
+        mError = "unexpected value at response end";
+        return totalBytes;
+    }
+
+    return totalBytes;
+}
+
+void SmartBMS::readAndIgnore() {
+    while (uart_is_readable(mUartId)) {
+        uart_getc(mUartId);
+    }
+}
+
+size_t SmartBMS::readByte(uint8_t *buffer) {
+    if (uart_is_readable_within_us(mUartId, READ_TIMEOUT)) {
+        uart_read_blocking(mUartId, buffer, 1);
+        return 1;
+    } else {
+        mError = "read timeout";
+        return 0;
+    }
+}
+
+// caller needs to ensure there will be no buffer overruns
+size_t SmartBMS::readBytes(uint8_t *buffer, size_t length) {
+    size_t totalBytes = 0;
+
+    for (size_t i = 0; i < length; ++i) {
+        size_t bytes = readByte(buffer);
+        if (bytes==0) {
+            return totalBytes;
+        } else {
+            buffer++;
+            totalBytes++;
+        }
+    }
+
+    return totalBytes;
+}
+
+//endregion
