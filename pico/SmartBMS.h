@@ -4,11 +4,11 @@
 #ifndef BMS_MONITOR_SMARTBMS_H
 #define BMS_MONITOR_SMARTBMS_H
 
-#define READ_BUFFER_SIZE 64
-#define READ_TIMEOUT 2000
+#define READ_BUFFER_SIZE 128
+#define READ_TIMEOUT 50000
 
 #define MAGIC_START 0xDD
-#define MAGIC_END 0xFF
+#define MAGIC_END 0x77
 #define STATUS_OK 0x00
 
 enum BMSStatus { DISCHARGING, NONE, CHARGING};
@@ -34,16 +34,20 @@ private:
     bool     mFetCharging;       // true if charging fet is on
     bool     mFetDischarging;    // true if discharging fet is on
 
+    std::string mHexResponse;
+
+    void uartPut(char *data, int length);
     size_t readResponse(uint8_t *buffer);
     void readAndIgnore();
     size_t readByte(uint8_t *buffer);
     size_t readBytes(uint8_t *buffer, size_t length);
-
+    std::string toHexString(const uint8_t *data, int length);
 public:
     SmartBMS(uart_inst_t *uartId, uint txPin, uint rxPin);
     void refresh();
 
     bool isValid();
+    std::string getError();
     uint16_t getPackVoltage();
     int16_t  getPackCurrent();
     BMSStatus getStatus();
@@ -53,6 +57,8 @@ public:
     int16_t  getTemperature();
     bool     getFetCharging();
     bool     getFetDischarging();
+
+    std::string getHexResponse();
 };
 
 

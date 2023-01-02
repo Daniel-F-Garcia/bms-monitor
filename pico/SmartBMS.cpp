@@ -1,29 +1,34 @@
 #include "SmartBMS.h"
 
-#define BAUD_RATE 9600
-#define DATA_BITS 8
-#define STOP_BITS 1
-#define PARITY UART_PARITY_NONE
+#define SMART_BMS_BAUD_RATE 9600
+#define SMART_BMS_DATA_BITS 8
+#define SMART_BMS_STOP_BITS 1
+#define SMART_BMS_PARITY UART_PARITY_NONE
 
 #define BMS_INFO_REQUEST "\xDD\xA5\x03\x00\xFF\xFD\x77"
+#define BMS_INFO_REQUEST_LENGTH 7
 
 SmartBMS::SmartBMS(uart_inst_t *uartId, uint txPin, uint rxPin) {
     mUartId = uartId;
     mTxPin = txPin;
     mRxPin = rxPin;
 
-    uart_init(mUartId, BAUD_RATE);
+    uart_init(mUartId, SMART_BMS_BAUD_RATE);
     gpio_set_function(mTxPin, GPIO_FUNC_UART);
     gpio_set_function(mRxPin, GPIO_FUNC_UART);
-    uart_set_format(mUartId, DATA_BITS, STOP_BITS, PARITY);
+    uart_set_format(mUartId, SMART_BMS_DATA_BITS, SMART_BMS_STOP_BITS, SMART_BMS_PARITY);
+    uart_set_translate_crlf(mUartId, false);
 }
 
 void SmartBMS::refresh() {
     mError = "";
 
-    uart_puts(mUartId, BMS_INFO_REQUEST);
+    uartPut(BMS_INFO_REQUEST, BMS_INFO_REQUEST_LENGTH);
+    uart_tx_wait_blocking(mUartId);
+    sleep_ms(100);
     size_t responseBytes = readResponse(mReadBuffer);
-    if (mError!="") {
+    mHexResponse = toHexString(mReadBuffer, responseBytes);
+    if (!mError.empty()) {
         return;
     }
 
@@ -79,6 +84,10 @@ bool SmartBMS::isValid() {
     return mError=="";
 }
 
+std::string SmartBMS::getError() {
+    return mError;
+}
+
 uint16_t SmartBMS::getPackVoltage() {
     return mPackVoltage;
 }
@@ -115,9 +124,19 @@ bool SmartBMS::getFetDischarging() {
     return mFetDischarging;
 }
 
+std::string SmartBMS::getHexResponse() {
+    return mHexResponse;
+}
+
 //endregion
 
 //region private
+
+void SmartBMS::uartPut(char *data, int length) {
+    for (int i=0;i<length;i++) {
+        uart_putc(mUartId, data[i]);
+    }
+}
 
 size_t SmartBMS::readResponse(uint8_t *buffer) {
     // see https://blog.ja-ke.tech/2020/02/07/ltt-power-bms-chinese-protocol.html
@@ -142,8 +161,8 @@ size_t SmartBMS::readResponse(uint8_t *buffer) {
         return bytesRead;
     }
 
-    size_t dataLength = buffer[1] + 3;
-    if (dataLength > READ_BUFFER_SIZE - 3) {
+    size_t dataLength = buffer[3] + 4;
+    if (dataLength > READ_BUFFER_SIZE - 4) {
         mError = "response exceeds buffer size";
         readAndIgnore();
         return bytesRead;
@@ -184,9 +203,10 @@ size_t SmartBMS::readByte(uint8_t *buffer) {
 size_t SmartBMS::readBytes(uint8_t *buffer, size_t length) {
     size_t totalBytes = 0;
 
-    for (size_t i = 0; i < length; ++i) {
+    for (size_t i = 0; i < length; i++) {
         size_t bytes = readByte(buffer);
         if (bytes==0) {
+            mError = "read timeout at byte " + std::to_string(i);
             return totalBytes;
         } else {
             buffer++;
@@ -195,6 +215,17 @@ size_t SmartBMS::readBytes(uint8_t *buffer, size_t length) {
     }
 
     return totalBytes;
+}
+
+std::string SmartBMS::toHexString(const uint8_t *data, int length) {
+    char hexString[length*2 + 1];
+
+    for (int i=0; i<length; i++) {
+        sprintf(hexString + i*2, "%02x", data[i]);
+    }
+    hexString[length*2] = 0;
+
+    return std::string(hexString);
 }
 
 //endregion
