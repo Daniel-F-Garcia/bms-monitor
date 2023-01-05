@@ -8,6 +8,8 @@
 #define BMS_INFO_REQUEST "\xDD\xA5\x03\x00\xFF\xFD\x77"
 #define BMS_INFO_REQUEST_LENGTH 7
 
+using namespace daniel_f_garcia::bms;
+
 SmartBMS::SmartBMS(uart_inst_t *uartId, uint txPin, uint rxPin) {
     mUartId = uartId;
     mTxPin = txPin;
@@ -52,7 +54,7 @@ void SmartBMS::refresh() {
 
     uint8_t* data = mReadBuffer + 4;
 
-    mPackVoltage = (data[0x00] << 8) | data[0x01];
+    mPackVoltage = (float)((data[0x00] << 8) | data[0x01])/100;
     int16_t packCurrent = (data[0x02] << 8) | data[0x03];
     if (packCurrent==0) {
         mStatus = BMSStatus::NONE;
@@ -61,7 +63,7 @@ void SmartBMS::refresh() {
     } else {
         mStatus = BMSStatus::DISCHARGING;
     }
-    mPackCurrent = abs(packCurrent);
+    mPackCurrent = (float)abs(packCurrent)/100;
 
     mNominalCapacity = (data[0x06] << 8) | data[0x07];
     mResidualCapacity = (data[0x04] << 8) | data[0x05];
@@ -73,7 +75,8 @@ void SmartBMS::refresh() {
     }
 
     mBalanceStatus = (data[0x0C] << 8) | data[0x0D];
-    mTemperature = ((data[0x17] << 8) | data[0x18]) - 2731;
+    mTemperature = ((float)((data[0x17] << 8) | data[0x18]) - 2731)/10;
+    //mTemperature = ((data[0x17] << 8) | data[0x18]);
     mFetCharging = data[0x14] & 0x01;
     mFetDischarging = (data[0x14] & 0x02) >> 1;
 }
@@ -88,11 +91,11 @@ std::string SmartBMS::getError() {
     return mError;
 }
 
-uint16_t SmartBMS::getPackVoltage() {
+float SmartBMS::getPackVoltage() {
     return mPackVoltage;
 }
 
-int16_t  SmartBMS::getPackCurrent() {
+float SmartBMS::getPackCurrent() {
     return mPackCurrent;
 }
 
@@ -112,7 +115,11 @@ int8_t SmartBMS::getPercentCapacity() {
     return mPercentCapacity;
 }
 
-int16_t SmartBMS::getTemperature() {
+uint16_t SmartBMS::getBalanceStatus() {
+    return mBalanceStatus;
+}
+
+float SmartBMS::getTemperature() {
     return mTemperature;
 }
 
@@ -126,6 +133,16 @@ bool SmartBMS::getFetDischarging() {
 
 std::string SmartBMS::getHexResponse() {
     return mHexResponse;
+}
+
+//endregion
+
+//region other methods
+
+std::string SmartBMS::toString() {
+    return std::to_string(mPackVoltage) + ", " +
+        std::to_string(mPackCurrent) + ", " +
+        std::to_string(mPercentCapacity);
 }
 
 //endregion
@@ -150,7 +167,7 @@ size_t SmartBMS::readResponse(uint8_t *buffer) {
     }
 
     if (buffer[0] != MAGIC_START) {
-        mError = "unexpected value at response position 0";
+        mError = "unexpected value " + toHexString(buffer, 1) + " at response position 0";
         readAndIgnore();
         return bytesRead;
     }
@@ -218,12 +235,22 @@ size_t SmartBMS::readBytes(uint8_t *buffer, size_t length) {
 }
 
 std::string SmartBMS::toHexString(const uint8_t *data, int length) {
-    char hexString[length*2 + 1];
-
-    for (int i=0; i<length; i++) {
-        sprintf(hexString + i*2, "%02x", data[i]);
+    if (length==0) {
+        return "LENGTH WAS 0";
     }
-    hexString[length*2] = 0;
+
+    int hexStringLength = length*2 + (length-1)/4;
+    char hexString[hexStringLength + 1];
+    int hexStringIndex = 0;
+    for (int i=0; i<length; i++) {
+        if (i > 0 && i % 4 == 0) {
+            hexString[hexStringIndex] = '.';
+            hexStringIndex++;
+        }
+        sprintf(hexString + hexStringIndex, "%02x", data[i]);
+        hexStringIndex += 2;
+    }
+    hexString[hexStringLength] = 0;
 
     return std::string(hexString);
 }
