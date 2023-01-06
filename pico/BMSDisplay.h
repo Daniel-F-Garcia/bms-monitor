@@ -11,6 +11,10 @@ namespace daniel_f_garcia::bms {
         Nextion& mNextion;
         SmartBMS& mBMS;
         std::string format(float value, int decimalPlaces);
+        void refreshPack();
+        void clearPack();
+        void refreshCells();
+        void clearCells();
     public:
         BMSDisplay(Nextion &nextion, SmartBMS &bms);
         void refresh();

@@ -25,7 +25,12 @@ namespace daniel_f_garcia::bms {
 
         uint8_t mReadBuffer[READ_BUFFER_SIZE];
 
-        std::string mError;
+        std::string mPackError;
+        std::string mCellsError;
+        int mPackErrorCount;
+        int mCellsErrorCount;
+        std::string mPackHexResponse;
+        std::string mCellsHexResponse;
 
         float mPackVoltage;
         float mPackCurrent;
@@ -37,18 +42,20 @@ namespace daniel_f_garcia::bms {
         float mTemperature;       // celsius
         bool mFetCharging;       // true if charging fet is on
         bool mFetDischarging;    // true if discharging fet is on
+        float mCellVolts[4];
 
-        std::string mHexResponse;
+        void refreshPack();
+        void refreshCells();
 
-        void uartPut(char *data, int length);
+        void uartPut(const char *data, int length);
 
-        size_t readResponse(uint8_t *buffer);
+        size_t readResponse(uint8_t *buffer, std::string &error);
 
         void readAndIgnore();
 
-        size_t readByte(uint8_t *buffer);
+        size_t readByte(uint8_t *buffer, std::string &error);
 
-        size_t readBytes(uint8_t *buffer, size_t length);
+        size_t readBytes(uint8_t *buffer, size_t length, std::string &error);
 
         std::string toHexString(const uint8_t *data, int length);
 
@@ -57,31 +64,27 @@ namespace daniel_f_garcia::bms {
 
         void refresh();
 
-        bool isValid();
-
-        std::string getError();
+        bool isPackValid();
+        bool isCellsValid();
+        std::string getPackError();
+        std::string getCellsError();
+        int getPackErrorCount();
+        int getCellsErrorCount();
 
         float getPackVoltage();
-
         float getPackCurrent();
-
         BMSStatus getStatus();
-
         uint16_t getNominalCapacity();
-
         uint16_t getResidualCapacity();
-
         int8_t getPercentCapacity();
-
         uint16_t getBalanceStatus();
-
         float getTemperature();
-
         bool getFetCharging();
-
         bool getFetDischarging();
+        float getCellVolts(int index);
 
-        std::string getHexResponse();
+        std::string getPackHexResponse();
+        std::string getCellsHexResponse();
 
         std::string toString();
     };

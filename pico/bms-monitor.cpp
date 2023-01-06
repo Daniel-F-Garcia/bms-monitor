@@ -24,27 +24,16 @@ int main() {
 
     nextion.setText("t8", "initialising...");
 
-    sleep_ms(500);
+    sleep_ms(100);
     bms.refresh();
-    sleep_ms(500);
+    sleep_ms(100);
 
     int i = 0;
 
     while (true) {
         bms.refresh();
-        if (bms.isValid()) {
-            display.refresh();
-            nextion.setText("t8", bms.toString() + ", " + " :: " + bms.getHexResponse().substr(52));
-        } else {
-            nextion.setText("t8", bms.getError());
-            //nextion.setText("t8", bms.getHexResponse());
-        }
-
-
-        sleep_ms(500);
-        gpio_put(LED_PIN, 1);
-        sleep_ms(500);
-        gpio_put(LED_PIN, 0);
+        display.refresh();
+        sleep_ms(250);
 
         i++;
     }

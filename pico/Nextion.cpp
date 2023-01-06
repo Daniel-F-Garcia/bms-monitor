@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <cstdarg>
 #include "hardware/uart.h"
 #include "Nextion.h"
 
@@ -24,25 +23,10 @@ Nextion::Nextion(uart_inst_t *uartId, uint txPin, uint rxPin) {
     uart_set_format(mUartId, DATA_BITS, STOP_BITS, PARITY);
 }
 
-void Nextion::setText(std::string variable, char* text) {
+void Nextion::setText(std::string variable, std::string text) {
     uart_puts(mUartId, variable.c_str());
     uart_puts(mUartId,".txt=\"");
-    uart_puts(mUartId, text);
-    uart_puts(mUartId,"\"");
-    uart_puts(mUartId, END_OF_COMMAND);
-}
-
-void Nextion::setText(std::string variable, std::string format, ...) {
-    char value[MAX_STRING_LENGTH];
-
-    va_list args;
-    va_start(args, format);
-    vsprintf(value, format.c_str(), args);
-    va_end(args);
-
-    uart_puts(mUartId, variable.c_str());
-    uart_puts(mUartId,".txt=\"");
-    uart_puts(mUartId, value);
+    uart_puts(mUartId, text.c_str());
     uart_puts(mUartId,"\"");
     uart_puts(mUartId, END_OF_COMMAND);
 }

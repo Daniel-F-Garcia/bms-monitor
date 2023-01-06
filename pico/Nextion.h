@@ -13,9 +13,7 @@ namespace daniel_f_garcia::bms {
     public:
         Nextion(uart_inst_t *uartId, uint txPin, uint rxPin);
 
-        void setText(std::string variable, char* text);
-
-        void setText(std::string variable, std::string format, ...);
+        void setText(std::string variable, std::string text);
 
         void setInt(std::string, std::string, int value);
 
