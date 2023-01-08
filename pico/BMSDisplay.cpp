@@ -35,8 +35,7 @@ void BMSDisplay::refresh() {
     }
 
     if (mBMS.isCellsValid()) {
-        //mNextion.setText("t8", "");
-        mNextion.setText("t8", mBMS.getCellsHexResponse());
+        mNextion.setText("t8", "");
         refreshCells();
     } else if (mBMS.getCellsErrorCount()>ERROR_THRESHOLD) {
         mNextion.setText("t8", mBMS.getCellsError());

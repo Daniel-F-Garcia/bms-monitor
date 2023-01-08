@@ -225,10 +225,10 @@ void SmartBMS::refreshCells() {
 
     uint8_t* data = mReadBuffer + 4;
 
-    mCellVolts[0] = (float)((data[4] << 8) | data[5])/1000;
-    mCellVolts[1] = (float)((data[6] << 8) | data[7])/1000;
-    mCellVolts[2] = (float)((data[8] << 8) | data[9])/1000;
-    mCellVolts[3] = (float)((data[10] << 8) | data[11])/1000;
+    mCellVolts[0] = (float)((data[0] << 8) | data[1])/1000;
+    mCellVolts[1] = (float)((data[2] << 8) | data[3])/1000;
+    mCellVolts[2] = (float)((data[4] << 8) | data[5])/1000;
+    mCellVolts[3] = (float)((data[6] << 8) | data[7])/1000;
 }
 
 
